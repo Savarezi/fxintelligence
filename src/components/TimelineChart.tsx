@@ -1,95 +1,131 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format } from 'date-fns';
-
-interface HistoricoEntry {
-  moeda: string;
-  valor: number;
-  data: string;
-}
-
-const COLORS = ['#00FF41', '#00CC33', '#66FF88', '#33CCAA', '#00AAFF', '#FF6644', '#FFAA00', '#CC44FF'];
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Legend
+} from 'recharts';
 
 export default function TimelineChart() {
-  const [chartData, setChartData] = useState<Record<string, string | number>[]>([]);
-  const [currencies, setCurrencies] = useState<string[]>([]);
+  const [data, setData] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const { data } = await supabase
+    async function fetchHistory() {
+      const { data: rawData } = await supabase
         .from('historico_cambio')
-        .select('moeda, valor, data')
-        .order('data', { ascending: true });
+        .select('data_consulta, valor_cambio, moeda_destino')
+        .order('data_consulta', { ascending: true });
 
-      if (!data || data.length === 0) return;
-
-      const entries = data as HistoricoEntry[];
-      const uniqueCurrencies = [...new Set(entries.map((e) => e.moeda))];
-      setCurrencies(uniqueCurrencies);
-
-      // Group by date
-      const dateMap: Record<string, Record<string, number>> = {};
-      entries.forEach((entry) => {
-        const dateKey = format(new Date(entry.data), 'dd/MM');
-        if (!dateMap[dateKey]) dateMap[dateKey] = {};
-        dateMap[dateKey][entry.moeda] = entry.valor;
-      });
-
-      const formatted = Object.entries(dateMap).map(([date, values]) => ({
-        date,
-        ...values,
-      }));
-
-      setChartData(formatted);
-    };
-    fetchData();
+      if (rawData) {
+        const groups = rawData.reduce((acc: any, item) => {
+          const date = new Date(item.data_consulta).toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit'
+          });
+          if (!acc[date]) acc[date] = { name: date };
+          if (item.moeda_destino === 'BRL') acc[date].dolar = item.valor_cambio;
+          if (item.moeda_destino === 'EUR') acc[date].euro = item.valor_cambio;
+          return acc;
+        }, {});
+        setData(Object.values(groups));
+      }
+    }
+    fetchHistory();
   }, []);
 
-  if (chartData.length === 0) {
-    return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-border bg-card">
-        <p className="text-sm text-muted-foreground">Dados históricos não disponíveis.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="rounded-xl border border-border bg-card p-6">
-      <ResponsiveContainer width="100%" height={350}>
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 18%)" />
-          <XAxis
-            dataKey="date"
-            tick={{ fill: 'hsl(0 0% 69%)', fontSize: 12 }}
-            stroke="hsl(0 0% 18%)"
-          />
-          <YAxis
-            tick={{ fill: 'hsl(0 0% 69%)', fontSize: 12 }}
-            stroke="hsl(0 0% 18%)"
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(0 0% 11.8%)',
-              border: '1px solid hsl(0 0% 18%)',
-              borderRadius: '8px',
-              color: '#fff',
-            }}
-          />
-          <Legend wrapperStyle={{ color: 'hsl(0 0% 69%)' }} />
-          {currencies.map((currency, idx) => (
-            <Line
-              key={currency}
-              type="monotone"
-              dataKey={currency}
-              stroke={COLORS[idx % COLORS.length]}
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              activeDot={{ r: 5 }}
+    <div className="w-full space-y-4">
+      {/* CABEÇALHO MINIMALISTA */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 border-b border-white/5 pb-4">
+        <div>
+          <h2 className="text-xs font-black uppercase tracking-[0.2em] text-[#22c55e]">
+            Análise de Tendência Cambial
+          </h2>
+          <p className="max-w-2xl text-[11px] leading-relaxed text-gray-500 mt-1 uppercase font-medium">
+            Comparativo de volatilidade USD/BRL e USD/EUR. Dados processados em tempo real para suporte à decisão de importação e hedge.
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Status: </span>
+          <span className="text-[10px] font-bold text-[#22c55e] uppercase animate-pulse">Live Data</span>
+        </div>
+      </div>
+
+      {/* ÁREA DO GRÁFICO LIMPA */}
+      <div className="h-[350px] w-full pt-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="lineDolar" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1}/>
+                <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+              </linearGradient>
+              <linearGradient id="lineEuro" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            
+            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+            
+            <XAxis 
+              dataKey="name" 
+              axisLine={false} 
+              tickLine={false} 
+              tick={{fill: '#4b5563', fontSize: 10, fontWeight: '600'}}
+              dy={10}
             />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+            
+            <YAxis 
+              axisLine={false}
+              tickLine={false}
+              tick={{fill: '#4b5563', fontSize: 10}}
+              domain={['auto', 'auto']} 
+            />
+            
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: '#0c0c0e', 
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: '8px',
+                fontSize: '11px',
+                textTransform: 'uppercase'
+              }}
+              itemStyle={{ fontWeight: '800' }}
+            />
+
+            <Legend 
+              verticalAlign="top" 
+              align="right" 
+              iconType="rect"
+              wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}
+            />
+
+            <Area 
+              type="monotone" 
+              dataKey="dolar" 
+              name="USD / BRL"
+              stroke="#22c55e" 
+              strokeWidth={2}
+              fill="url(#lineDolar)" 
+            />
+
+            <Area 
+              type="monotone" 
+              dataKey="euro" 
+              name="USD / EUR"
+              stroke="#3b82f6" 
+              strokeWidth={2}
+              fill="url(#lineEuro)" 
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

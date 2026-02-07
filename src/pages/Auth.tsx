@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { BarChart3, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
@@ -21,123 +22,117 @@ export default function Auth() {
     setSuccess('');
     setLoading(true);
 
-    if (isLogin) {
-      const { error } = await signIn(email, password);
-      if (error) {
-        setError('Credenciais inválidas. Tente novamente.');
-      } else {
+    const agora = new Date().toISOString();
+
+    try {
+      if (isLogin) {
+        // --- LOGIN ---
+        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (loginErr) throw loginErr;
+
+        await supabase.from('usuarios').update({ ultimo_acesso: agora }).eq('email', email);
         navigate('/dashboard');
-      }
-    } else {
-      if (!nome.trim()) {
-        setError('Por favor, informe seu nome.');
-        setLoading(false);
-        return;
-      }
-      const { error } = await signUp(email, password, nome);
-      if (error) {
-        setError(error.message);
       } else {
-        setSuccess('Conta criada com sucesso! Verifique seu e-mail para confirmar.');
+        // --- CADASTRO ---
+        // 1. Cria no Auth do Supabase
+        const { data: authData } = await signUp(email, password, nome);
+        
+        // 2. SALVA NA TABELA USUARIOS (O que já estava funcionando)
+        await supabase.from('usuarios').insert([
+          {
+            nome: nome,
+            email: email,
+            senha: password,
+            status_conta: 'Ativo',
+            data_cadastro: agora,
+            ultimo_acesso: agora
+          }
+        ]);
+
+        // 3. SALVA NA TABELA DE LOGS (Independente e sem travas)
+        // Aqui enviamos apenas o e-mail ou nome se o ID estiver difícil, 
+        // mas vamos tentar mandar o e-mail no lugar do user_id se sua tabela permitir,
+        // ou apenas os textos fixos.
+        await supabase.from('logs_consultas_usuario').insert([
+          {
+            moeda: 'CADASTRO NOVO', // Texto fixo para registro
+            data_consulta: agora
+            // Removi o user_id para não dar erro de relação/FK
+          }
+        ]);
+
+        // LIMPEZA DOS CAMPOS
+        setSuccess('Cadastro e Log registrados!');
+        setNome('');
+        setEmail('');
+        setPassword('');
+
+        setTimeout(() => {
+          setIsLogin(true);
+          setSuccess('');
+        }, 1500);
       }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-hero-gradient px-4 pt-16">
-      <div className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-[#020817] p-4">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c0c0e] p-8 shadow-2xl">
         <div className="mb-8 text-center">
-          <div className="mb-4 flex items-center justify-center gap-2">
-            <BarChart3 className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold">FX <span className="text-gradient-green">Intelligence</span></span>
-          </div>
-          <p className="text-muted-foreground">
-            {isLogin ? 'Acesse sua conta' : 'Crie sua conta'}
-          </p>
+          <BarChart3 className="mx-auto h-12 w-12 text-[#22c55e]" />
+          <h1 className="mt-4 text-2xl font-black text-white uppercase tracking-tighter">FX Intelligence</h1>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-8 glow-green">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLogin && (
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Nome
-                </label>
-                <input
-                  type="text"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-foreground outline-none transition-colors focus:border-primary"
-                  placeholder="Seu nome completo"
-                  required={!isLogin}
-                />
-              </div>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <input
+              type="text"
+              placeholder="NOME"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#22c55e] outline-none"
+              required
+            />
+          )}
+          <input
+            type="email"
+            placeholder="EMAIL"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#22c55e] outline-none"
+            required
+          />
+          <input
+            type="password"
+            placeholder="SENHA"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#22c55e] outline-none"
+            required
+          />
 
-            <div>
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                E-mail
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-foreground outline-none transition-colors focus:border-primary"
-                placeholder="seu@email.com"
-                required
-              />
-            </div>
+          {error && <div className="text-[10px] font-bold text-red-500 uppercase">{error}</div>}
+          {success && <div className="text-[10px] font-bold text-[#22c55e] uppercase">{success}</div>}
 
-            <div>
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Senha
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-secondary px-4 py-3 pr-12 text-foreground outline-none transition-colors focus:border-primary"
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-[#22c55e] py-3 font-black text-black hover:bg-[#1ca850]"
+          >
+            {loading ? 'CARREGANDO...' : isLogin ? 'ENTRAR' : 'CADASTRAR E SALVAR'}
+          </button>
+        </form>
 
-            {error && (
-              <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
-            )}
-            {success && (
-              <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary">{success}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-primary py-3 font-bold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
-            >
-              {loading ? 'Aguarde...' : isLogin ? 'Entrar' : 'Criar Conta'}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
-            >
-              {isLogin ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Faça login'}
-            </button>
-          </div>
-        </div>
+        <button
+          onClick={() => setIsLogin(!isLogin)}
+          className="mt-6 w-full text-center text-xs font-bold text-gray-500 hover:text-[#22c55e] uppercase"
+        >
+          {isLogin ? 'Criar Conta' : 'Voltar ao Login'}
+        </button>
       </div>
     </div>
   );

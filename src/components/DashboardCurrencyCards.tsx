@@ -1,69 +1,68 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-
-interface Moeda {
-  id: string;
-  nome: string;
-  sigla: string;
-  valor_compra: number | null;
-  valor_venda: number | null;
-  variacao: number | null;
-}
+import { DollarSign, Euro, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 export default function DashboardCurrencyCards() {
-  const [moedas, setMoedas] = useState<Moeda[]>([]);
+  const [rates, setRates] = useState({
+    usd: { valor: 0, anterior: 0 },
+    eur: { valor: 0, anterior: 0 }
+  });
 
   useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase.from('moedas').select('*');
-      if (data) setMoedas(data as Moeda[]);
-    };
-    fetch();
+    async function fetchRates() {
+      // Puxa os últimos 4 registros para podermos comparar o atual com o anterior
+      const { data } = await supabase
+        .from('historico_cambio')
+        .select('moeda_destino, valor_cambio, data_consulta')
+        .order('data_consulta', { ascending: false })
+        .limit(4);
+
+      if (data) {
+        const brlData = data.filter(r => r.moeda_destino === 'BRL');
+        const eurData = data.filter(r => r.moeda_destino === 'EUR');
+
+        setRates({
+          usd: { valor: brlData[0]?.valor_cambio || 0, anterior: brlData[1]?.valor_cambio || 0 },
+          eur: { valor: eurData[0]?.valor_cambio || 0, anterior: eurData[1]?.valor_cambio || 0 }
+        });
+      }
+    }
+    fetchRates();
   }, []);
 
-  if (moedas.length === 0) {
+  const renderCard = (label: string, symbol: string, current: number, previous: number, icon: any, color: string) => {
+    const isUp = current >= previous;
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-32 animate-pulse rounded-xl bg-card" />
-        ))}
+      <div className="group relative overflow-hidden rounded-3xl border border-white/5 bg-[#0c0c0e] p-7 shadow-2xl transition-all hover:border-[#22c55e]/30">
+        <div className="flex items-center justify-between mb-6">
+          <div className={`rounded-2xl bg-${color}/10 p-3 text-${color} border border-${color}/20`}>
+            {icon}
+          </div>
+          <div className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest ${isUp ? 'text-red-500' : 'text-[#22c55e]'}`}>
+            {isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+            {current !== 0 && previous !== 0 ? Math.abs(((current - previous) / previous) * 100).toFixed(2) : '0.00'}%
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">{label}</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-black tracking-tighter text-white">
+              {symbol} {current.toFixed(current > 10 ? 2 : 3)}
+            </span>
+          </div>
+        </div>
+
+        {/* Linha decorativa de brilho */}
+        <div className={`absolute bottom-0 left-0 h-[2px] w-0 bg-${color} transition-all duration-500 group-hover:w-full`} />
       </div>
     );
-  }
+  };
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {moedas.map((moeda) => {
-        const variacao = moeda.variacao ?? 0;
-        const isUp = variacao > 0;
-        const isDown = variacao < 0;
-
-        return (
-          <div
-            key={moeda.id}
-            className="rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/30 hover:glow-green"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {moeda.nome}
-              </span>
-              <span className="rounded-md bg-secondary px-2 py-0.5 font-mono text-xs text-primary">
-                {moeda.sigla}
-              </span>
-            </div>
-            <p className="mb-1 font-mono text-2xl font-bold">
-              R$ {moeda.valor_compra?.toFixed(4) ?? '—'}
-            </p>
-            <div className={`flex items-center gap-1 text-xs font-medium ${
-              isUp ? 'text-primary' : isDown ? 'text-destructive' : 'text-muted-foreground'
-            }`}>
-              {isUp ? <TrendingUp className="h-3 w-3" /> : isDown ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-              {variacao.toFixed(2)}%
-            </div>
-          </div>
-        );
-      })}
+    <div className="grid gap-6 md:grid-cols-2">
+      {renderCard("Dólar Comercial", "R$", rates.usd.valor, rates.usd.anterior, <DollarSign size={24} />, "#22c55e")}
+      {renderCard("Euro Internacional", "€", rates.eur.valor, rates.eur.anterior, <Euro size={24} />, "#3b82f6")}
     </div>
   );
 }

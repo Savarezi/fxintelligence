@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
 import { MessageCircle, X, Send } from 'lucide-react';
 
-type Step = 'init' | 'nome' | 'idade' | 'cidade' | 'email' | 'saved' | 'currency' | 'result' | 'end';
+type Step = 'init' | 'nome' | 'idade' | 'cidade' | 'email' | 'currency' | 'end';
 
 interface Message {
   role: 'bot' | 'user';
@@ -16,10 +15,16 @@ export default function Chatbot() {
   const [step, setStep] = useState<Step>('init');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [data, setData] = useState({ nome: '', idade: '', cidade_pais: '', email: '' });
-  const [ended, setEnded] = useState(false);
+  const [data, setData] = useState({ nome: '', idade: '', city_pais: '', email: '' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+
+  // --- FUNÇÃO PARA RESETAR TUDO ---
+  const handleClose = () => {
+    setOpen(false);
+    setMessages([]); // Limpa as mensagens
+    setStep('init'); // Volta ao passo inicial
+    setData({ nome: '', idade: '', city_pais: '', email: '' }); // Limpa os dados guardados
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,155 +41,123 @@ export default function Chatbot() {
   };
 
   const handleOpen = () => {
-    if (!open && messages.length === 0) {
-      // Initial message
+    setOpen(true);
+    // Removemos a trava messages.length === 0 para ele sempre iniciar se estiver vazio
+    if (messages.length === 0) {
       setTimeout(() => {
-        addBot('Olá! Eu sou um assistente virtual limitado exclusivamente a consultas de Dólar e Euro. No momento, não realizo outras integrações ou tipos de consulta.');
+        addBot('Olá! Sou o Assistente de Inteligência Cambial da FX Intelligence. Sou um sistema especializado e limitado exclusivamente à consulta das cotações de Dólar e Euro em tempo real. Não realizo outras tarefas ou integrações fora deste escopo.');
+        
         setTimeout(() => {
-          addBot('Qual é o seu nome?');
+          addBot('Para aceder ao valor atualizado agora, como posso te chamar?');
           setStep('nome');
-        }, 800);
+        }, 1200);
       }, 300);
     }
-    setOpen(true);
   };
 
   const handleSend = async () => {
-    if (!input.trim() || ended) return;
+    if (!input.trim()) return;
     const value = input.trim();
     setInput('');
     addUser(value);
 
-    switch (step) {
-      case 'nome':
-        setData((d) => ({ ...d, nome: value }));
-        setTimeout(() => { addBot('Qual é a sua idade?'); setStep('idade'); }, 400);
-        break;
-      case 'idade':
-        setData((d) => ({ ...d, idade: value }));
-        setTimeout(() => { addBot('Qual é a sua cidade / país?'); setStep('cidade'); }, 400);
-        break;
-      case 'cidade':
-        setData((d) => ({ ...d, cidade_pais: value }));
-        setTimeout(() => { addBot('Qual é o seu e-mail?'); setStep('email'); }, 400);
-        break;
-      case 'email':
-        const updatedData = { ...data, email: value };
-        setData(updatedData);
-        // Save to leads_chatbot
-        await supabase.from('leads_chatbot').insert({
-          nome: updatedData.nome,
-          idade: updatedData.idade,
-          cidade_pais: updatedData.cidade_pais,
-          email: updatedData.email,
-        });
-        setTimeout(() => {
-          addBot(`Obrigado, ${updatedData.nome}. Seus dados foram registrados.`);
-          setTimeout(() => {
-            addBot(`Agora, ${updatedData.nome}, você quer saber o valor do Dólar ou do Euro?`, [
-              { label: 'Dólar', value: 'USD' },
-              { label: 'Euro', value: 'EUR' },
-            ]);
-            setStep('currency');
-          }, 800);
-        }, 400);
-        break;
-      default:
-        break;
+    if (step === 'nome') {
+      setData((d) => ({ ...d, nome: value }));
+      setTimeout(() => { addBot(`Prazer, ${value}! Qual é a sua idade?`); setStep('idade'); }, 600);
+    } 
+    else if (step === 'idade') {
+      setData((d) => ({ ...d, idade: value }));
+      setTimeout(() => { addBot('E de qual cidade e país você fala?'); setStep('cidade'); }, 600);
+    } 
+    else if (step === 'cidade') {
+      setData((d) => ({ ...d, city_pais: value }));
+      setTimeout(() => { addBot('Para liberar sua consulta, qual o seu melhor e-mail?'); setStep('email'); }, 600);
+    } 
+    else if (step === 'email') {
+      const finalData = { ...data, email: value };
+      setData(finalData);
+
+      await supabase.from('leads_chatbot').insert({
+        nome: finalData.nome,
+        idade: finalData.idade,
+        cidade_pais: finalData.city_pais,
+        email: finalData.email
+      });
+
+      setTimeout(() => {
+        addBot(`Obrigado, ${finalData.nome}! Dados registrados. Agora, qual moeda você deseja consultar?`, [
+          { label: 'Dólar (USD)', value: 'BRL' }, 
+          { label: 'Euro (EUR)', value: 'EUR' },
+        ]);
+        setStep('currency');
+      }, 600);
     }
   };
 
-  const handleCurrencyChoice = async (currency: string) => {
-    addUser(currency === 'USD' ? 'Dólar' : 'Euro');
-    setStep('result');
+  const handleCurrencyChoice = async (moedaDestino: string) => {
+    addUser(moedaDestino === 'BRL' ? 'Dólar' : 'Euro');
 
-    const { data: moedaData } = await supabase
-      .from('moedas')
-      .select('valor_compra, valor_venda')
-      .eq('sigla', currency)
-      .limit(1);
-
-    const moeda = moedaData?.[0] as { valor_compra: number | null; valor_venda: number | null } | undefined;
-    const currencyName = currency === 'USD' ? 'Dólar' : 'Euro';
+    const { data: cambio } = await supabase
+      .from('historico_cambio')
+      .select('valor_cambio')
+      .eq('moeda_destino', moedaDestino)
+      .order('data_consulta', { ascending: false })
+      .limit(1)
+      .single();
 
     setTimeout(() => {
-      if (moeda) {
-        addBot(
-          `${data.nome}, o valor atual do ${currencyName}:\n\n💰 Compra: R$ ${moeda.valor_compra?.toFixed(4) ?? '—'}\n💰 Venda: R$ ${moeda.valor_venda?.toFixed(4) ?? '—'}`
-        );
+      if (cambio) {
+        addBot(`${data.nome}, o valor atual do ${moedaDestino === 'BRL' ? 'Dólar' : 'Euro'} é R$ ${cambio.valor_cambio.toFixed(2)}.`);
       } else {
-        addBot(`${data.nome}, não encontrei dados do ${currencyName} no momento.`);
+        addBot('Não consegui localizar os dados de cotação agora. Por favor, tente o Dashboard.');
       }
+
       setTimeout(() => {
-        addBot('Para acompanhar mais dados, gráficos e análises completas, acesse o nosso Dashboard.', [
-          { label: 'Ir para o Dashboard', value: 'dashboard' },
+        addBot('Para ter acesso a gráficos e análises completas, assine nossa plataforma!', [
+          { label: 'Ver Planos', value: 'plans' }
         ]);
         setStep('end');
       }, 1000);
     }, 600);
   };
 
-  const handleDashboard = () => {
-    navigate('/dashboard');
-    setOpen(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSend();
-  };
-
   return (
     <>
-      {/* Float button */}
       {!open && (
-        <button
-          onClick={handleOpen}
-          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-110 glow-green-strong"
-          aria-label="Abrir chatbot"
-        >
-          <MessageCircle className="h-6 w-6" />
+        <button onClick={handleOpen} className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#22c55e] text-black shadow-lg hover:scale-110 transition-transform">
+          <MessageCircle size={28} />
         </button>
       )}
 
-      {/* Chat window */}
       {open && (
-        <div className="fixed bottom-6 right-6 z-50 flex h-[500px] w-[360px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:w-[380px]">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-border bg-secondary px-4 py-3">
+        <div className="fixed bottom-6 right-6 z-50 flex h-[500px] w-[350px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c0e] shadow-2xl">
+          <div className="flex items-center justify-between bg-white/5 px-4 py-3 border-b border-white/5">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 animate-pulse-glow rounded-full bg-primary" />
-              <span className="text-sm font-semibold">FX Assistant</span>
+              <div className="h-2 w-2 rounded-full bg-[#22c55e] animate-pulse" />
+              <span className="text-xs font-bold uppercase tracking-widest text-white">FX Assistant</span>
             </div>
-            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
-              <X className="h-5 w-5" />
+            {/* CHAMANDO O RESET AO FECHAR */}
+            <button onClick={handleClose} className="text-gray-500 hover:text-white transition-colors">
+              <X size={20} />
             </button>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-line ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-foreground'
-                  }`}
-                >
+                <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
+                  msg.role === 'user' 
+                  ? 'bg-[#22c55e] text-black font-bold' 
+                  : 'bg-white/5 text-gray-300 border border-white/5'
+                }`}>
                   {msg.text}
                   {msg.buttons && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {msg.buttons.map((btn) => (
-                        <button
-                          key={btn.value}
-                          onClick={() => {
-                            if (btn.value === 'dashboard') {
-                              handleDashboard();
-                            } else {
-                              handleCurrencyChoice(btn.value);
-                            }
-                          }}
-                          className="rounded-lg border border-primary bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                        <button 
+                          key={btn.value} 
+                          onClick={() => handleCurrencyChoice(btn.value)}
+                          className="rounded-lg border border-[#22c55e] bg-[#22c55e]/10 px-3 py-1 text-xs font-bold text-[#22c55e] hover:bg-[#22c55e] hover:text-black transition-all"
                         >
                           {btn.label}
                         </button>
@@ -197,25 +170,18 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          {step !== 'end' && step !== 'currency' && step !== 'result' && step !== 'init' && (
-            <div className="border-t border-border p-3">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Digite sua resposta..."
-                  className="flex-1 rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary"
-                />
-                <button
-                  onClick={handleSend}
-                  className="rounded-lg bg-primary p-2.5 text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
-              </div>
+          {(step !== 'currency' && step !== 'end') && (
+            <div className="p-3 border-t border-white/5 bg-black/20 flex gap-2">
+              <input 
+                value={input} 
+                onChange={(e) => setInput(e.target.value)} 
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Escreva aqui..."
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#22c55e]/50"
+              />
+              <button onClick={handleSend} className="bg-[#22c55e] text-black p-2 rounded-xl hover:scale-105 transition-transform">
+                <Send size={18} />
+              </button>
             </div>
           )}
         </div>
