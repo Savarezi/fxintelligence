@@ -8,19 +8,25 @@ export default function ProductCards() {
 
   useEffect(() => {
     async function fetchProducts() {
+      // 1. Trazemos todos os produtos globais sem filtros complicados
       const { data, error } = await supabase
         .from('produtos_globais')
         .select('nome, setor, preco_original, moeda_origem, link_produto')
-        .or('nome.ilike.*Soja*,nome.ilike.*Petróleo*,nome.ilike.*Diesel*')
         .order('criado_em', { ascending: false });
 
       if (data) {
-        const uniqueProducts = data.reduce((acc: any[], current) => {
-          const x = acc.find(item => item.nome === current.nome);
-          if (!x) return acc.concat([current]);
-          else return acc;
-        }, []);
-        setProducts(uniqueProducts);
+        // 2. Filtramos manualmente aqui para garantir que encontramos os 3
+        // Procuramos por qualquer nome que contenha a palavra chave
+        const soja = data.find(p => p.nome.toLowerCase().includes('soja'));
+        const diesel = data.find(p => p.nome.toLowerCase().includes('diesel'));
+        const petroleo = data.find(p => p.nome.toLowerCase().includes('petróleo') || p.nome.toLowerCase().includes('petroleo'));
+
+        const listaFinal = [];
+        if (soja) listaFinal.push(soja);
+        if (diesel) listaFinal.push(diesel);
+        if (petroleo) listaFinal.push(petroleo);
+
+        setProducts(listaFinal);
       }
       setLoading(false);
     }
@@ -29,10 +35,11 @@ export default function ProductCards() {
 
   if (loading) return <div className="text-center py-10 text-gray-500 uppercase font-bold animate-pulse tracking-widest">Sincronizando Commodities...</div>;
 
-  // Função para colocar um ícone de acordo com o nome do produto
+  // Função de ícones baseada no que contém no nome
   const getIcon = (nome: string) => {
-    if (nome.toLowerCase().includes('petróleo')) return <Factory className="text-[#22c55e]" size={24} />;
-    if (nome.toLowerCase().includes('diesel')) return <Fuel className="text-[#22c55e]" size={24} />;
+    const n = nome.toLowerCase();
+    if (n.includes('petróleo') || n.includes('petroleo')) return <Factory className="text-[#22c55e]" size={24} />;
+    if (n.includes('diesel')) return <Fuel className="text-[#22c55e]" size={24} />;
     return <Box className="text-[#22c55e]" size={24} />;
   };
 
@@ -41,7 +48,6 @@ export default function ProductCards() {
       {products.map((product, index) => (
         <div key={index} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c0e] p-6 shadow-2xl transition-all hover:border-[#22c55e]/50">
           
-          {/* Efeito de brilho no fundo ao passar o mouse */}
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-[#22c55e]/5 blur-2xl transition-all group-hover:bg-[#22c55e]/10" />
 
           <div className="relative z-10">
@@ -54,7 +60,7 @@ export default function ProductCards() {
               </span>
             </div>
 
-            <h3 className="mb-6 text-xl font-black uppercase tracking-tighter text-white group-hover:text-[#22c55e] transition-colors">
+            <h3 className="mb-6 text-xl font-black uppercase tracking-tighter text-white group-hover:text-[#22c55e] transition-colors leading-tight h-12">
               {product.nome}
             </h3>
             
@@ -69,12 +75,12 @@ export default function ProductCards() {
                 </div>
               </div>
 
+              {/* Link dinâmico vindo da coluna link_produto */}
               <a 
-                href={product.link_produto} 
+                href={product.link_produto || "https://www.noticiasagricolas.com.br/cotacoes/soja"} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 text-gray-400 transition-all hover:bg-[#22c55e] hover:text-black shadow-lg"
-                title="Ver detalhes"
               >
                 <ExternalLink size={20} />
               </a>

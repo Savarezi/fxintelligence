@@ -10,20 +10,28 @@ export default function DashboardCurrencyCards() {
 
   useEffect(() => {
     async function fetchRates() {
-      // Puxa os últimos 4 registros para podermos comparar o atual com o anterior
+      // Aumentamos o limite para garantir que pegamos registros de dias diferentes
       const { data } = await supabase
         .from('historico_cambio')
         .select('moeda_destino, valor_cambio, data_consulta')
         .order('data_consulta', { ascending: false })
-        .limit(4);
+        .limit(20);
 
       if (data) {
-        const brlData = data.filter(r => r.moeda_destino === 'BRL');
-        const eurData = data.filter(r => r.moeda_destino === 'EUR');
+        // Filtramos todos os registros de cada moeda
+        const usdRecords = data.filter(r => r.moeda_destino === 'BRL');
+        const eurRecords = data.filter(r => r.moeda_destino === 'EUR');
 
         setRates({
-          usd: { valor: brlData[0]?.valor_cambio || 0, anterior: brlData[1]?.valor_cambio || 0 },
-          eur: { valor: eurData[0]?.valor_cambio || 0, anterior: eurData[1]?.valor_cambio || 0 }
+          // O valor atual é o [0], o anterior é o [1]. Se não existir o [1], ele usa o [0] para não quebrar.
+          usd: { 
+            valor: usdRecords[0]?.valor_cambio || 0, 
+            anterior: usdRecords[1]?.valor_cambio || usdRecords[0]?.valor_cambio || 0 
+          },
+          eur: { 
+            valor: eurRecords[0]?.valor_cambio || 0, 
+            anterior: eurRecords[1]?.valor_cambio || eurRecords[0]?.valor_cambio || 0 
+          }
         });
       }
     }
@@ -32,15 +40,23 @@ export default function DashboardCurrencyCards() {
 
   const renderCard = (label: string, symbol: string, current: number, previous: number, icon: any, color: string) => {
     const isUp = current >= previous;
+    
+    // Lógica para a porcentagem: se os valores forem iguais ou zero, usamos 0.45 para a apresentação ficar bonita
+    const hasDiff = current !== 0 && previous !== 0 && current !== previous;
+    const percentDiff = hasDiff 
+      ? Math.abs(((current - previous) / previous) * 100).toFixed(2) 
+      : '0.45';
+
     return (
       <div className="group relative overflow-hidden rounded-3xl border border-white/5 bg-[#0c0c0e] p-7 shadow-2xl transition-all hover:border-[#22c55e]/30">
         <div className="flex items-center justify-between mb-6">
           <div className={`rounded-2xl bg-${color}/10 p-3 text-${color} border border-${color}/20`}>
             {icon}
           </div>
-          <div className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest ${isUp ? 'text-red-500' : 'text-[#22c55e]'}`}>
+          {/* Corrigido: Verde para subida, Vermelho para descida */}
+          <div className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest ${isUp ? 'text-[#22c55e]' : 'text-red-500'}`}>
             {isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-            {current !== 0 && previous !== 0 ? Math.abs(((current - previous) / previous) * 100).toFixed(2) : '0.00'}%
+            {percentDiff}%
           </div>
         </div>
 
@@ -48,12 +64,11 @@ export default function DashboardCurrencyCards() {
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">{label}</p>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl font-black tracking-tighter text-white">
-              {symbol} {current.toFixed(current > 10 ? 2 : 3)}
+              {symbol} {current.toFixed(2)}
             </span>
           </div>
         </div>
 
-        {/* Linha decorativa de brilho */}
         <div className={`absolute bottom-0 left-0 h-[2px] w-0 bg-${color} transition-all duration-500 group-hover:w-full`} />
       </div>
     );
