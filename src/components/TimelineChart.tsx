@@ -1,127 +1,117 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
+import { useEffect, useState } from "react";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function TimelineChart() {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState([]);
 
   useEffect(() => {
-    async function fetchHistory() {
-      const { data: rawData } = await supabase
-        .from('historico_cambio')
-        .select('data_consulta, valor_cambio, moeda_destino')
-        .order('data_consulta', { ascending: true });
+    async function fetchData() {
+      try {
+        const { data: res } = await supabase
+          .from("historico_cambio")
+          .select("data_consulta, moeda_destino, valor_cambio")
+          .order("data_consulta", { ascending: true })
+          .limit(100);
 
-      if (rawData) {
-        const groups = rawData.reduce((acc: any, item) => {
-          const date = new Date(item.data_consulta).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit'
-          });
-          if (!acc[date]) acc[date] = { name: date };
-          if (item.moeda_destino === 'BRL') acc[date].dolar = item.valor_cambio;
-          if (item.moeda_destino === 'EUR') acc[date].euro = item.valor_cambio;
-          return acc;
-        }, {});
-        setData(Object.values(groups));
+        if (res && res.length > 0) {
+          const formattedData = res.reduce((acc: any, item: any) => {
+            const dateObj = new Date(item.data_consulta);
+            const label = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + 
+                          " " + dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            const point = {
+              date: label,
+              dolar: item.moeda_destino === "BRL" ? item.valor_cambio : null,
+              euro: item.moeda_destino === "EUR" ? item.valor_cambio : null,
+            };
+            
+            acc.push(point);
+            return acc;
+          }, []);
+          setData(formattedData);
+        }
+      } catch (err) {
+        console.error("Erro no gráfico:", err);
       }
     }
-    fetchHistory();
+    fetchData();
   }, []);
 
   return (
-    <div className="w-full space-y-4">
-      {/* CABEÇALHO MINIMALISTA */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 border-b border-white/5 pb-4">
-        <div>
-          <h2 className="text-xs font-black uppercase tracking-[0.2em] text-[#22c55e]">
-            Análise de Tendência Cambial
-          </h2>
-          <p className="max-w-2xl text-[11px] leading-relaxed text-gray-500 mt-1 uppercase font-medium">
-            Comparativo de volatilidade USD/BRL e USD/EUR. Dados processados em tempo real para suporte à decisão de importação e hedge.
-          </p>
-        </div>
-        <div className="text-right">
-          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Status: </span>
-          <span className="text-[10px] font-bold text-[#22c55e] uppercase animate-pulse">Live Data</span>
-        </div>
+    <div className="bg-black p-8 rounded-xl border border-[#22c55e]/30 w-full shadow-[0_0_30px_-10px_rgba(34,197,94,0.2)] font-mono">
+      {/* Título e Subtítulo Estilo Terminal Dev */}
+      <div className="mb-8 border-l-4 border-[#22c55e] pl-4">
+        <h2 className="text-2xl font-bold text-[#22c55e] tracking-tighter uppercase">
+          &gt; MONITORAMENTO_CAMBIAL_LOG
+        </h2>
+        <p className="text-gray-500 text-xs mt-1 uppercase tracking-[0.2em]">
+          Status: Sistema Ativo // Sincronização em tempo real
+        </p>
       </div>
-
-      {/* ÁREA DO GRÁFICO LIMPA */}
-      <div className="h-[350px] w-full pt-4">
+      
+      <div className="h-[400px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
-              <linearGradient id="lineDolar" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1}/>
+              {/* Degradê Verde Matrix */}
+              <linearGradient id="colorDolar" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4}/>
                 <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
               </linearGradient>
-              <linearGradient id="lineEuro" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+              {/* Degradê Cinza Escuro (para o Euro não brigar com o verde) */}
+              <linearGradient id="colorEuro" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#4b5563" stopOpacity={0.4}/>
+                <stop offset="95%" stopColor="#4b5563" stopOpacity={0}/>
               </linearGradient>
             </defs>
             
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-            
-            <XAxis 
-              dataKey="name" 
-              axisLine={false} 
-              tickLine={false} 
-              tick={{fill: '#4b5563', fontSize: 10, fontWeight: '600'}}
-              dy={10}
-            />
-            
+            <CartesianGrid strokeDasharray="3 3" stroke="#22c55e" strokeOpacity={0.05} vertical={false} />
+            <XAxis dataKey="date" hide={true} />
             <YAxis 
-              axisLine={false}
-              tickLine={false}
-              tick={{fill: '#4b5563', fontSize: 10}}
-              domain={['auto', 'auto']} 
+              stroke="#22c55e" 
+              strokeOpacity={0.5}
+              fontSize={10} 
+              tickLine={false} 
+              axisLine={false} 
+              domain={['auto', 'auto']}
+              tickFormatter={(val) => `R$ ${val.toFixed(2)}`}
             />
             
             <Tooltip 
               contentStyle={{ 
-                backgroundColor: '#0c0c0e', 
-                border: '1px solid rgba(255,255,255,0.05)',
-                borderRadius: '8px',
-                fontSize: '11px',
-                textTransform: 'uppercase'
+                backgroundColor: '#000', 
+                border: '1px solid #22c55e', 
+                borderRadius: '4px',
+                color: '#22c55e',
+                fontFamily: 'monospace'
               }}
-              itemStyle={{ fontWeight: '800' }}
             />
-
-            <Legend 
-              verticalAlign="top" 
-              align="right" 
-              iconType="rect"
-              wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}
-            />
-
+            
+            <Legend verticalAlign="top" align="right" />
+            
+            {/* Dólar em Verde Neon */}
             <Area 
               type="monotone" 
               dataKey="dolar" 
-              name="USD / BRL"
+              name="USD_BRL" 
               stroke="#22c55e" 
-              strokeWidth={2}
-              fill="url(#lineDolar)" 
+              strokeWidth={3}
+              fillOpacity={1} 
+              fill="url(#colorDolar)" 
+              connectNulls 
             />
-
+            
+            {/* Euro em Cinza/Dark Silver */}
             <Area 
               type="monotone" 
               dataKey="euro" 
-              name="USD / EUR"
-              stroke="#3b82f6" 
+              name="EUR_BRL" 
+              stroke="#4b5563" 
               strokeWidth={2}
-              fill="url(#lineEuro)" 
+              fillOpacity={1} 
+              fill="url(#colorEuro)" 
+              connectNulls
             />
           </AreaChart>
         </ResponsiveContainer>
