@@ -2,15 +2,19 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardCurrencyCards from "@/components/DashboardCurrencyCards";
 import TimelineChart from "@/components/TimelineChart";
-import { Fuel, Leaf, Circle, Brain, Sparkles, AlertTriangle, CheckCircle, Clock, Download, Globe, Droplets } from "lucide-react";
+import { Fuel, Leaf, Circle, Brain, Sparkles, AlertTriangle, CheckCircle, Clock, Download, Globe, Droplets, Activity } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+// ADIÇÃO 1: Importando o novo Modal
+import { MarketIntelModal } from "@/components/MarketIntelModal";
 
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([]);
   const [aiInsight, setAiInsight] = useState("");
   const [status, setStatus] = useState({ label: "ANALISANDO", color: "text-yellow-500", farol: "amarelo" });
   const [lastUpdate, setLastUpdate] = useState("");
+  // ADIÇÃO 2: Estado para controlar a abertura da tela
+  const [isIntelOpen, setIsIntelOpen] = useState(false);
   
   const dashboardRef = useRef<HTMLDivElement>(null);
 
@@ -44,13 +48,10 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  // FUNÇÃO DE DOWNLOAD CORRIGIDA: PDF AGORA TEM ALTURA DINÂMICA
   const handleDownload = async () => {
     if (dashboardRef.current) {
       try {
         const element = dashboardRef.current;
-        
-        // 1. Captura o canvas com a altura real do conteúdo (scrollHeight)
         const canvas = await html2canvas(element, { 
           backgroundColor: "#020817", 
           scale: 2, 
@@ -60,16 +61,10 @@ export default function Dashboard() {
           windowHeight: element.scrollHeight,
           scrollY: -window.scrollY
         });
-        
         const imgData = canvas.toDataURL("image/png");
-        
-        // 2. Cálculo para o PDF não ser um A4 fixo, mas sim do tamanho do conteúdo
-        const imgWidth = 210; // Largura padrão em mm
-        const imgHeight = (canvas.height * imgWidth) / canvas.width; // Altura proporcional
-        
-        // 3. Criamos o PDF com as medidas exatas [largura, altura]
+        const imgWidth = 210; 
+        const imgHeight = (canvas.height * imgWidth) / canvas.width; 
         const pdf = new jsPDF("p", "mm", [imgWidth, imgHeight]);
-        
         pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
         pdf.save("Relatorio_IA_Dashboard.pdf");
       } catch (error) { console.error("Erro ao gerar PDF:", error); }
@@ -89,9 +84,21 @@ export default function Dashboard() {
               SISTEMA ATUALIZADO EM: <span className="text-[#22c55e]">{lastUpdate || "CARREGANDO..."}</span>
             </p>
           </div>
-          <button onClick={handleDownload} className="flex items-center gap-2 bg-[#22c55e] hover:bg-[#1da34d] text-black font-black px-6 py-3 rounded-xl transition-all uppercase text-xs shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-            <Download size={18} /> Baixar PDF Agora
-          </button>
+          
+          {/* DIV de botões para manter o layout alinhado */}
+          <div className="flex gap-4">
+            {/* ADIÇÃO 3: O Novo Botão de Inteligência */}
+            <button 
+              onClick={() => setIsIntelOpen(true)}
+              className="flex items-center gap-2 bg-transparent border-2 border-[#22c55e] hover:bg-[#22c55e]/10 text-[#22c55e] font-black px-6 py-3 rounded-xl transition-all uppercase text-xs shadow-[0_0_15px_rgba(34,197,94,0.1)]"
+            >
+              <Activity size={18} /> Inteligência de Mercado
+            </button>
+
+            <button onClick={handleDownload} className="flex items-center gap-2 bg-[#22c55e] hover:bg-[#1da34d] text-black font-black px-6 py-3 rounded-xl transition-all uppercase text-xs shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+              <Download size={18} /> Baixar PDF Agora
+            </button>
+          </div>
         </header>
 
         <div className="bg-black border border-[#22c55e]/30 p-8 rounded-2xl shadow-lg">
@@ -136,10 +143,10 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-8 pt-4 border-t border-white/5">
-                   <p className="text-[#22c55e] text-[11px] uppercase tracking-widest font-black">Fonte: {p.origem || 'Database Global'}</p>
-                   <p className="text-gray-400 text-[10px] leading-relaxed italic mt-1 font-sans">
-                     Fonte oficial monitorada via banco de dados global para garantir precisão operacional. Atualizado em: {p.criado_em ? new Date(p.criado_em).toLocaleDateString('pt-BR') : '--'}
-                   </p>
+                    <p className="text-[#22c55e] text-[11px] uppercase tracking-widest font-black">Fonte: {p.origem || 'Database Global'}</p>
+                    <p className="text-gray-400 text-[10px] leading-relaxed italic mt-1 font-sans">
+                      Fonte oficial monitorada via banco de dados global para garantir precisão operacional. Atualizado em: {p.criado_em ? new Date(p.criado_em).toLocaleDateString('pt-BR') : '--'}
+                    </p>
                 </div>
               </div>
             );
@@ -191,6 +198,9 @@ export default function Dashboard() {
             </p>
           </div>
         </section>
+
+        {/* ADIÇÃO 4: Chamada do Modal (fica invisível até clicar no botão) */}
+        <MarketIntelModal isOpen={isIntelOpen} onClose={() => setIsIntelOpen(false)} />
 
       </div>
     </div>
