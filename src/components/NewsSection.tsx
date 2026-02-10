@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { ExternalLink, Clock, Newspaper } from 'lucide-react';
+import { ExternalLink, Clock, Newspaper, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -38,10 +38,8 @@ export default function NewsSection() {
 
   if (loading) {
     return (
-      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-[450px] animate-pulse rounded-2xl bg-card border border-border" />
-        ))}
+      <div className="flex justify-center w-full">
+        <div className="h-[500px] w-full max-w-4xl animate-pulse rounded-2xl bg-card border border-border" />
       </div>
     );
   }
@@ -56,62 +54,72 @@ export default function NewsSection() {
   }
 
   return (
-    <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-      {noticias.map((noticia, idx) => (
-        <a
-          key={noticia.id}
-          href={noticia.link ?? '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-primary/60 hover:shadow-2xl hover:-translate-y-1"
-          style={{ animationDelay: `${idx * 100}ms` }}
-        >
-          {/* FOTO AMPLIADA: Aumentei para h-80 (320px de altura) */}
-          {noticia.url_imagem && (
-            <div className="relative h-80 w-full overflow-hidden bg-muted">
-              <img
-                src={noticia.url_imagem}
-                alt={noticia.titulo}
-                className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                loading="eager"
-              />
-              {/* Degradê sutil para as cores não ficarem "lavadas" */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-              
-              {/* Etiqueta de Setor flutuando sobre a imagem maior */}
-              {noticia.setor && (
-                <div className="absolute left-4 top-4">
-                  <span className="rounded-lg bg-primary px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-primary-foreground shadow-xl">
-                    {noticia.setor}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+    <div className="flex flex-col items-center w-full gap-8">
+      {/* TEXTO DE AVISO QUE VOCÊ PEDIU */}
+      <div className="w-full max-w-4xl text-center mb-4 space-y-2">
+        <div className="inline-flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-widest">
+          <Zap className="h-4 w-4 fill-primary" /> Atualizado em Tempo Real
+        </div>
+        <p className="text-muted-foreground text-lg">
+          As principais movimentações do mercado. Todos os <strong>insights detalhados</strong> desta notícia já estão disponíveis no seu <strong>Dashboard</strong>.
+        </p>
+      </div>
 
-          <div className="flex flex-1 flex-col p-6">
-            <div className="mb-4 flex items-center gap-3 text-[11px] font-medium text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5 text-primary" />
-                {noticia.criado_at
-                  ? format(new Date(noticia.criado_at), "dd 'de' MMM, yyyy", { locale: ptBR })
-                  : 'Recém postado'}
-              </span>
-              <span>•</span>
-              <span className="uppercase tracking-tighter">{noticia.fonte ?? 'FX Intelligence'}</span>
-            </div>
+      {/* GRID DINÂMICO: Se tiver 1 notícia, ela fica centralizada e larga. Se tiver mais, elas se organizam. */}
+      <div className={`grid gap-8 w-full ${noticias.length === 1 ? 'max-w-4xl grid-cols-1' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+        {noticias.map((noticia, idx) => (
+          <a
+            key={noticia.id}
+            href={noticia.link ?? '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-primary/60 hover:shadow-2xl hover:-translate-y-1"
+            style={{ animationDelay: `${idx * 100}ms` }}
+          >
+            {noticia.url_imagem && (
+              <div className="relative h-[400px] w-full overflow-hidden bg-muted">
+                <img
+                  src={noticia.url_imagem}
+                  alt={noticia.titulo}
+                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  loading="eager"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                
+                {noticia.setor && (
+                  <div className="absolute left-6 top-6">
+                    <span className="rounded-lg bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-primary-foreground shadow-xl">
+                      {noticia.setor}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <h3 className="mb-6 text-xl font-bold leading-tight text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-              {noticia.titulo}
-            </h3>
+            <div className="flex flex-1 flex-col p-8">
+              <div className="mb-4 flex items-center gap-3 text-xs font-medium text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Clock className="h-4 w-4 text-primary" />
+                  {noticia.criado_at
+                    ? format(new Date(noticia.criado_at), "dd 'de' MMMM, yyyy", { locale: ptBR })
+                    : 'Recém postado'}
+                </span>
+                <span>•</span>
+                <span className="uppercase tracking-widest font-bold">{noticia.fonte ?? 'FX Intelligence'}</span>
+              </div>
 
-            <div className="mt-auto flex items-center font-bold text-primary text-sm">
-              LEIA A ANÁLISE COMPLETA
-              <ExternalLink className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+              <h3 className="mb-8 text-2xl font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
+                {noticia.titulo}
+              </h3>
+
+              <div className="mt-auto flex items-center font-black text-primary text-sm tracking-widest">
+                LEIA A ANÁLISE COMPLETA NO DASHBOARD
+                <ExternalLink className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </div>
             </div>
-          </div>
-        </a>
-      ))}
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
