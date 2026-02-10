@@ -39,29 +39,46 @@ export default function CurrencyConverter() {
 
   const handleConvert = async () => {
     setLoading(true);
-    const taxaEncontrada = historico.find(
+    
+    // 1. Tenta achar o par direto (Ex: USD -> BRL)
+    const taxaDireta = historico.find(
       (h) => h.moeda_base === fromCurrency && h.moeda_destino === toCurrency
     );
 
-    if (taxaEncontrada) {
-      const converted = parseFloat(amount) * taxaEncontrada.valor_cambio;
+    if (taxaDireta) {
+      const converted = parseFloat(amount) * taxaDireta.valor_cambio;
       setResult(converted);
-      await supabase.from('logs_consultas_usuario').insert({
-        user_id: user?.id ?? null,
-        moeda: toCurrency,
-        data_consulta: new Date().toISOString(),
-      });
     } else {
+      // 2. Tenta o inverso (Ex: BRL -> USD)
       const taxaInversa = historico.find(
         (h) => h.moeda_base === toCurrency && h.moeda_destino === fromCurrency
       );
+
       if (taxaInversa) {
         const converted = parseFloat(amount) / taxaInversa.valor_cambio;
         setResult(converted);
       } else {
-        alert("Cotação não encontrada no seu banco para este par.");
+        // 3. Lógica de Ponte (Especial para converter EUR -> BRL usando USD como base)
+        const taxaUSD_From = historico.find(h => h.moeda_base === 'USD' && h.moeda_destino === fromCurrency);
+        const taxaUSD_To = historico.find(h => h.moeda_base === 'USD' && h.moeda_destino === toCurrency);
+
+        if (taxaUSD_From && taxaUSD_To) {
+          const valorEmUSD = parseFloat(amount) / taxaUSD_From.valor_cambio;
+          const finalResult = valorEmUSD * taxaUSD_To.valor_cambio;
+          setResult(finalResult);
+        } else {
+          alert("Cotação não encontrada no banco para este par.");
+        }
       }
     }
+
+    // Grava o log (mantendo sua regra original)
+    await supabase.from('logs_consultas_usuario').insert({
+      user_id: user?.id ?? null,
+      moeda: toCurrency,
+      data_consulta: new Date().toISOString(),
+    });
+
     setLoading(false);
   };
 
@@ -84,7 +101,7 @@ export default function CurrencyConverter() {
       {/* Gradiente Dark e Verde */}
       <div className="absolute inset-0 bg-gradient-to-br from-green-950/40 via-black/80 to-black" />
       
-      {/* Conteúdo do Conversor (O seu formulário) */}
+      {/* Conteúdo do Conversor */}
       <div className="relative z-10 w-full max-w-lg mx-auto">
         <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-8 shadow-2xl">
           <h2 className="mb-6 text-center text-2xl font-bold text-white">
