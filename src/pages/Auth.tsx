@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { BarChart3, Eye, EyeOff, Zap, ShieldCheck, Cpu, Database } from 'lucide-react';
+import { BarChart3, Eye, EyeOff, Zap, ShieldCheck, Cpu } from 'lucide-react';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -16,11 +16,12 @@ export default function Auth() {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
-  // Força a limpeza dos campos ao montar o componente para evitar persistência do navegador
+  // Limpa campos ao alternar entre login e cadastro
   useEffect(() => {
     setEmail('');
     setPassword('');
     setNome('');
+    setError('');
   }, [isLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,25 +34,40 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+        // --- PROCESSO DE LOGIN ---
+        const { error: loginErr } = await supabase.auth.signInWithPassword({ 
+          email: email.trim(), 
+          password 
+        });
+        
         if (loginErr) throw loginErr;
 
-        await supabase.from('usuarios').update({ ultimo_acesso: agora }).eq('email', email);
+        // Atualiza último acesso
+        await supabase.from('usuarios').update({ ultimo_acesso: agora }).eq('email', email.trim());
+        
         navigate('/dashboard');
       } else {
-        const { data: authData } = await signUp(email, password, nome);
+        // --- PROCESSO DE CADASTRO ---
+        // 1. Criar no Auth do Supabase (Usando a sua função signUp do Context)
+        const { data: authData, error: signUpErr } = await signUp(email.trim(), password, nome);
         
-        await supabase.from('usuarios').insert([
+        if (signUpErr) throw signUpErr;
+
+        // 2. Salvar na tabela 'usuarios'
+        const { error: dbError } = await supabase.from('usuarios').insert([
           {
             nome: nome,
-            email: email,
-            senha: password,
+            email: email.trim(),
+            senha: password, // Lembre-se que salvar senha em texto puro não é recomendado, mas mantive como estava no seu original
             status_conta: 'Ativo',
             data_cadastro: agora,
             ultimo_acesso: agora
           }
         ]);
 
+        if (dbError) throw dbError;
+
+        // 3. Registrar Log
         await supabase.from('logs_consultas_usuario').insert([
           {
             moeda: 'CADASTRO NOVO',
@@ -59,18 +75,16 @@ export default function Auth() {
           }
         ]);
 
-        setSuccess('Cadastro e Log registrados!');
-        setNome('');
-        setEmail('');
-        setPassword('');
-
+        setSuccess('Cadastro realizado com sucesso!');
+        
+        // Pequeno delay para o usuário ver a mensagem antes de voltar para o login
         setTimeout(() => {
           setIsLogin(true);
-          setSuccess('');
-        }, 1500);
+        }, 2000);
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Erro na operação:", err);
+      setError(err.message || 'Ocorreu um erro inesperado.');
     } finally {
       setLoading(false);
     }
@@ -79,7 +93,7 @@ export default function Auth() {
   return (
     <div className="flex min-h-screen bg-[#020817] font-sans selection:bg-[#00ff88]/30">
       
-      {/* LADO ESQUERDO: APRESENTAÇÃO TECNOLÓGICA */}
+      {/* LADO ESQUERDO: APRESENTAÇÃO */}
       <div className="hidden lg:flex w-1/2 relative flex-col justify-center px-16 overflow-hidden border-r border-white/5">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
         
@@ -102,32 +116,22 @@ export default function Auth() {
                 <BarChart3 className="w-5 h-5" />
               </div>
               <p className="text-gray-400 leading-relaxed text-sm">
-                O Dashboard entrega uma visão unificada e em tempo real do mercado, combinando <span className="text-white font-bold">dados, automação e inteligência artificial</span> em um único ambiente.
+                O Dashboard entrega uma visão unificada e em tempo real do mercado, combinando <span className="text-white font-bold">dados, automação e inteligência artificial</span>.
               </p>
             </div>
-
-            <div className="flex gap-4">
-              <div className="mt-1 p-2 rounded-lg bg-white/5 border border-white/10 h-fit text-[#00ff88]">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <p className="text-gray-400 leading-relaxed text-sm">
-                Apresenta paridade global atualizada, tendências de ativos, sinais visuais de decisão e <span className="text-white font-bold">relatórios automáticos em PDF</span> com um clique.
-              </p>
-            </div>
-
             <div className="flex gap-4">
               <div className="mt-1 p-2 rounded-lg bg-white/5 border border-white/10 h-fit text-[#00ff88]">
                 <Cpu className="w-5 h-5" />
               </div>
               <p className="text-xs text-gray-500 italic">
-                Arquitetura integrada: <span className="text-[#00ff88]">Supabase</span> para dados, <span className="text-[#00ff88]">n8n</span> para automações e <span className="text-[#00ff88]">IA</span> para transformar informação em decisão estratégica.
+                Arquitetura integrada: <span className="text-[#00ff88]">Supabase</span>, <span className="text-[#00ff88]">n8n</span> e <span className="text-[#00ff88]">IA</span> focados em resultados.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* LADO DIREITO: LOGIN / CADASTRO */}
+      {/* LADO DIREITO: FORMULÁRIO */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[#00ff88]/10 rounded-full blur-[120px]" />
 
@@ -138,7 +142,7 @@ export default function Auth() {
                 <BarChart3 className="h-8 w-8 text-[#00ff88]" />
               </div>
               <h2 className="text-2xl font-black text-white uppercase tracking-tighter">FX Intelligence</h2>
-              <p className="text-gray-500 text-xs mt-2 uppercase tracking-[0.2em] font-bold">Portal de Acesso Interno</p>
+              <p className="text-gray-500 text-xs mt-2 uppercase tracking-[0.2em] font-bold">Portal de Acesso</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
@@ -150,22 +154,21 @@ export default function Auth() {
                     placeholder="DIGITE SEU NOME"
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
-                    autoComplete="off"
-                    className="w-full rounded-xl border border-white/5 bg-white/5 p-4 text-white placeholder:text-gray-700 focus:border-[#00ff88]/50 outline-none transition-all font-mono"
+                    className="w-full rounded-xl border border-white/5 bg-white/5 p-4 text-white focus:border-[#00ff88]/50 outline-none transition-all font-mono"
                     required
                   />
                 </div>
               )}
               
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Credencial de E-mail</label>
+                <label className="text-[10px] font-black text-gray-500 uppercase ml-1">E-mail</label>
                 <input
                   type="email"
                   placeholder="NOME@EMPRESA.COM"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="one-time-code"
-                  className="w-full rounded-xl border border-white/5 bg-white/5 p-4 text-white placeholder:text-gray-700 focus:border-[#00ff88]/50 outline-none transition-all font-mono"
+                  className="w-full rounded-xl border border-white/5 bg-white/5 p-4 text-white focus:border-[#00ff88]/50 outline-none transition-all font-mono"
                   required
                 />
               </div>
@@ -179,13 +182,13 @@ export default function Auth() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="new-password"
-                    className="w-full rounded-xl border border-white/5 bg-white/5 p-4 text-white placeholder:text-gray-700 focus:border-[#00ff88]/50 outline-none transition-all font-mono"
+                    className="w-full rounded-xl border border-white/5 bg-white/5 p-4 text-white focus:border-[#00ff88]/50 outline-none transition-all font-mono"
                     required
                   />
                   <button 
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-[#00ff88] transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-[#00ff88]"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -207,25 +210,19 @@ export default function Auth() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative w-full overflow-hidden rounded-xl bg-[#00ff88] py-4 font-black text-black uppercase tracking-widest transition-all hover:shadow-[0_0_25px_rgba(0,255,136,0.4)] active:scale-[0.98] disabled:opacity-50"
+                className="group relative w-full overflow-hidden rounded-xl bg-[#00ff88] py-4 font-black text-black uppercase tracking-widest transition-all hover:shadow-[0_0_25px_rgba(0,255,136,0.4)] disabled:opacity-50"
               >
-                <span className="relative z-10">
-                  {loading ? 'PROCESSANDO...' : isLogin ? 'ENTRAR NO DASHBOARD' : 'CONFIRMAR CADASTRO'}
-                </span>
+                {loading ? 'PROCESSANDO...' : isLogin ? 'ENTRAR NO DASHBOARD' : 'CADASTRAR ACESSO'}
               </button>
             </form>
 
             <button
               onClick={() => setIsLogin(!isLogin)}
-              className="mt-8 w-full text-center text-[10px] font-black text-gray-600 hover:text-[#00ff88] uppercase tracking-[0.2em] transition-colors"
+              className="mt-8 w-full text-center text-[10px] font-black text-gray-600 hover:text-[#00ff88] uppercase tracking-[0.2em]"
             >
-              {isLogin ? 'Não possui acesso? Solicite aqui' : 'Já possui credenciais? Voltar'}
+              {isLogin ? 'Não possui acesso? Clique aqui' : 'Já possui conta? Voltar'}
             </button>
           </div>
-          
-          <p className="text-center mt-8 text-[9px] text-gray-700 uppercase tracking-widest font-bold">
-            Security Powered by FX Intelligence Protocol v2.0
-          </p>
         </div>
       </div>
     </div>
