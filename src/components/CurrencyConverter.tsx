@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowRightLeft } from 'lucide-react';
+import { ArrowRightLeft, Calculator, Zap } from 'lucide-react';
 
 interface HistoricoCambio {
   moeda_base: string;
@@ -40,7 +40,6 @@ export default function CurrencyConverter() {
   const handleConvert = async () => {
     setLoading(true);
     
-    // 1. Tenta achar o par direto (Ex: USD -> BRL)
     const taxaDireta = historico.find(
       (h) => h.moeda_base === fromCurrency && h.moeda_destino === toCurrency
     );
@@ -49,7 +48,6 @@ export default function CurrencyConverter() {
       const converted = parseFloat(amount) * taxaDireta.valor_cambio;
       setResult(converted);
     } else {
-      // 2. Tenta o inverso (Ex: BRL -> USD)
       const taxaInversa = historico.find(
         (h) => h.moeda_base === toCurrency && h.moeda_destino === fromCurrency
       );
@@ -58,7 +56,6 @@ export default function CurrencyConverter() {
         const converted = parseFloat(amount) / taxaInversa.valor_cambio;
         setResult(converted);
       } else {
-        // 3. Lógica de Ponte (Especial para converter EUR -> BRL usando USD como base)
         const taxaUSD_From = historico.find(h => h.moeda_base === 'USD' && h.moeda_destino === fromCurrency);
         const taxaUSD_To = historico.find(h => h.moeda_base === 'USD' && h.moeda_destino === toCurrency);
 
@@ -72,7 +69,6 @@ export default function CurrencyConverter() {
       }
     }
 
-    // Grava o log (mantendo sua regra original)
     await supabase.from('logs_consultas_usuario').insert({
       user_id: user?.id ?? null,
       moeda: toCurrency,
@@ -90,93 +86,126 @@ export default function CurrencyConverter() {
   ].filter(Boolean);
 
   return (
-    /* SEÇÃO COM FUNDO TECNOLÓGICO VERDE E DARK */
-    <section className="relative w-full py-16 px-4 overflow-hidden rounded-3xl">
-      {/* Imagem de Fundo Estilo Tecnologia/Dados */}
-      <img 
-        src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1600" 
-        alt="Fundo Tecnológico" 
-        className="absolute inset-0 h-full w-full object-cover opacity-20 blur-sm"
-      />
-      {/* Gradiente Dark e Verde */}
-      <div className="absolute inset-0 bg-gradient-to-br from-green-950/40 via-black/80 to-black" />
-      
-      {/* Conteúdo do Conversor */}
-      <div className="relative z-10 w-full max-w-lg mx-auto">
-        <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-8 shadow-2xl">
-          <h2 className="mb-6 text-center text-2xl font-bold text-white">
-            Conversor <span className="text-gradient-green">Real FX</span>
-          </h2>
+    <div className="relative w-full max-w-xl mx-auto group">
+      {/* CSS para as Setas do Input e Animação da Luz Verde */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          opacity: 1 !important;
+          filter: invert(1);
+          cursor: pointer;
+        }
+        @keyframes custom-pulse {
+          0% { transform: scale(0.95); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+          70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 6px rgba(0, 255, 136, 0); }
+          100% { transform: scale(0.95); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+        }
+        .animate-live-db {
+          animation: custom-pulse 2s infinite;
+        }
+      `}} />
 
-          <div className="space-y-5">
-            <div>
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-400">
-                Valor para converter
-              </label>
+      <div className="absolute -inset-1 bg-gradient-to-r from-[#00ff88]/20 to-blue-500/20 rounded-[2.5rem] blur-xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
+      
+      <div className="relative rounded-[2rem] border border-white/10 bg-[#0d0d0d]/80 backdrop-blur-2xl p-8 shadow-3xl overflow-hidden">
+        
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-[#00ff88]/10 rounded-lg">
+              <Calculator className="w-5 h-5 text-[#00ff88]" />
+            </div>
+            <h2 className="text-xl font-black text-white tracking-tight uppercase">
+              Conversor <span className="text-[#00ff88]">Real FX</span>
+            </h2>
+          </div>
+          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+             {/* A LUZ VERDE AGORA COM CLASSE CUSTOMIZADA */}
+             <div className="w-2 h-2 rounded-full bg-[#00ff88] animate-live-db" />
+             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Live DB</span>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="relative">
+            <label className="mb-3 block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+              Valor para Conversão
+            </label>
+            <div className="relative">
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-lg font-mono text-white outline-none transition-colors focus:border-primary"
+                className="w-full rounded-2xl border border-white/5 bg-white/5 px-6 py-4 text-2xl font-mono font-bold text-white outline-none transition-all focus:border-[#00ff88]/50 focus:bg-white/[0.08]"
                 placeholder="0.00"
               />
+              <span className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-600 font-bold">{fromCurrency}</span>
             </div>
+          </div>
 
-            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-400">De</label>
-                <select
-                  value={fromCurrency}
-                  onChange={(e) => setFromCurrency(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none"
-                >
-                  {currencies.length > 0 ? currencies.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  )) : <option>Carregando...</option>}
-                </select>
-              </div>
-
-              <button
-                onClick={() => { setFromCurrency(toCurrency); setToCurrency(fromCurrency); setResult(null); }}
-                className="mb-1 rounded-full border border-white/10 bg-zinc-800 p-2 text-primary hover:bg-primary/20"
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-gray-500 uppercase">Origem</label>
+              <select
+                value={fromCurrency}
+                onChange={(e) => {setFromCurrency(e.target.value); setResult(null);}}
+                className="w-full rounded-xl border border-white/5 bg-[#1a1a1a] px-4 py-3 text-sm font-bold text-white outline-none focus:ring-1 focus:ring-[#00ff88]/50 cursor-pointer"
               >
-                <ArrowRightLeft className="h-5 w-5" />
-              </button>
-
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-400">Para</label>
-                <select
-                  value={toCurrency}
-                  onChange={(e) => setToCurrency(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none"
-                >
-                  {currencies.length > 0 ? currencies.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  )) : <option>Carregando...</option>}
-                </select>
-              </div>
+                {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
 
             <button
-              onClick={handleConvert}
-              disabled={loading || !amount || currencies.length === 0}
-              className="w-full rounded-lg bg-primary py-4 font-bold text-black transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+              onClick={() => { setFromCurrency(toCurrency); setToCurrency(fromCurrency); setResult(null); }}
+              className="mt-6 p-3 rounded-full bg-white/5 border border-white/10 text-white hover:text-[#00ff88] transition-all active:scale-90"
             >
-              {loading ? 'Consultando Banco...' : 'Converter Agora'}
+              <ArrowRightLeft className="h-5 w-5" />
             </button>
+
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-gray-500 uppercase">Destino</label>
+              <select
+                value={toCurrency}
+                onChange={(e) => {setToCurrency(e.target.value); setResult(null);}}
+                className="w-full rounded-xl border border-white/5 bg-[#1a1a1a] px-4 py-3 text-sm font-bold text-white outline-none focus:ring-1 focus:ring-[#00ff88]/50 cursor-pointer"
+              >
+                {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
+
+          <button
+            onClick={handleConvert}
+            disabled={loading || !amount || currencies.length === 0}
+            className="group relative w-full overflow-hidden rounded-2xl bg-[#00ff88] py-5 font-black text-black uppercase tracking-widest transition-all hover:shadow-[0_0_30px_rgba(0,255,136,0.4)] disabled:opacity-50"
+          >
+            <div className="relative z-10 flex items-center justify-center gap-2">
+              {loading ? (
+                <div className="h-5 w-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 fill-current" />
+                  <span>Converter Agora</span>
+                </>
+              )}
+            </div>
+          </button>
         </div>
 
         {result !== null && (
-          <div className="mt-6 animate-fade-in-up rounded-2xl border border-primary/30 bg-black/80 backdrop-blur-md p-6 text-center shadow-[0_0_30px_rgba(34,197,94,0.2)]">
-            <p className="mb-1 text-sm text-gray-400">Resultado do seu Banco</p>
-            <p className="text-4xl font-bold font-mono text-white">
-              {result.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              <span className="ml-2 text-lg text-gray-500">{toCurrency}</span>
-            </p>
+          <div className="mt-8 pt-8 border-t border-white/5 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex justify-between items-end mb-2 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+              <span>Resultado da Cotação</span>
+              <span className="text-[#00ff88]">Sucesso</span>
+            </div>
+            <div className="bg-gradient-to-r from-white/[0.03] to-transparent p-6 rounded-2xl border border-white/5">
+              <p className="text-4xl font-mono font-black text-white tracking-tighter">
+                {result.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <span className="ml-3 text-lg text-[#00ff88]">{toCurrency}</span>
+              </p>
+            </div>
           </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }
