@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { MessageCircle, X, Send } from 'lucide-react';
+import { MessageCircle, X, Send, Zap } from 'lucide-react';
 
-type Step = 'init' | 'nome' | 'idade' | 'cidade' | 'email' | 'currency' | 'end';
+type Step = 'init' | 'nome' | 'idade' | 'cidade' | 'email' | 'currency' | 'pergunta_euro' | 'end';
 
 interface Message {
   role: 'bot' | 'user';
@@ -18,13 +18,6 @@ export default function Chatbot() {
   const [data, setData] = useState({ nome: '', idade: '', city_pais: '', email: '' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleClose = () => {
-    setOpen(false);
-    setMessages([]);
-    setStep('init');
-    setData({ nome: '', idade: '', city_pais: '', email: '' });
-  };
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -39,17 +32,29 @@ export default function Chatbot() {
     setMessages((prev) => [...prev, { role: 'user', text }]);
   };
 
+  // ZERA TUDO AO FECHAR
+  const handleClose = () => {
+    setOpen(false);
+    setMessages([]);
+    setStep('init');
+    setData({ nome: '', idade: '', city_pais: '', email: '' });
+    setInput('');
+  };
+
   const handleOpen = () => {
     setOpen(true);
-    if (messages.length === 0) {
+    // Reinicia o fluxo sempre que abrir
+    setMessages([]);
+    setTimeout(() => {
+      addBot('Olá! Sou o agente exclusivo da FX Intelligence.');
       setTimeout(() => {
-        addBot('Olá! Sou o Assistente da FX Intelligence. Estou aqui para te informar as cotações oficiais em tempo real.');
+        addBot('Minha única função aqui é informar a cotação do dólar oficial em tempo real para o seu negócio, sem distrações.');
         setTimeout(() => {
-          addBot('Para começar, como posso te chamar?');
+          addBot('Para iniciarmos sua consulta, como posso te chamar?');
           setStep('nome');
-        }, 1200);
-      }, 300);
-    }
+        }, 1000);
+      }, 1000);
+    }, 300);
   };
 
   const handleSend = async () => {
@@ -68,7 +73,7 @@ export default function Chatbot() {
     } 
     else if (step === 'cidade') {
       setData((d) => ({ ...d, city_pais: value }));
-      setTimeout(() => { addBot('Qual o seu melhor e-mail para liberar a consulta?'); setStep('email'); }, 600);
+      setTimeout(() => { addBot('Qual o seu melhor e-mail para liberar os dados da FX Intelligence?'); setStep('email'); }, 600);
     } 
     else if (step === 'email') {
       const finalData = { ...data, email: value };
@@ -82,40 +87,62 @@ export default function Chatbot() {
       });
 
       setTimeout(() => {
-        addBot(`Obrigado, ${finalData.nome}! Qual moeda deseja consultar hoje?`, [
-          { label: 'Dólar (USD)', value: 'BRL' }, 
-          { label: 'Euro (EUR)', value: 'EUR' },
+        addBot(`Dados validados, ${finalData.nome}! Clique abaixo para obter a cotação oficial do Dólar:`, [
+          { label: 'Ver Cotação Dólar (USD)', value: 'BRL' }
         ]);
         setStep('currency');
       }, 600);
     }
   };
 
-  const handleCurrencyChoice = async (moedaDestino: string) => {
-    addUser(moedaDestino === 'BRL' ? 'Dólar' : 'Euro');
-
-    const { data: cambio } = await supabase
-      .from('historico_cambio')
-      .select('valor_cambio')
-      .eq('moeda_destino', moedaDestino)
-      .order('data_consulta', { ascending: false })
-      .limit(1)
-      .single();
-
-    setTimeout(() => {
-      if (cambio) {
-        addBot(`${data.nome}, o valor atual do ${moedaDestino === 'BRL' ? 'Dólar' : 'Euro'} é R$ ${cambio.valor_cambio.toFixed(2)}.`);
-      } else {
-        addBot('Não localizei os dados. Por favor, tente novamente em instantes.');
-      }
+  const handleChoice = async (choice: string) => {
+    if (step === 'currency') {
+      addUser("Consultar Dólar");
+      const { data: cambio } = await supabase
+        .from('historico_cambio')
+        .select('valor_cambio')
+        .eq('moeda_destino', 'BRL')
+        .order('data_consulta', { ascending: false })
+        .limit(1).single();
 
       setTimeout(() => {
-        addBot('Deseja ver análises completas? Assine nossa plataforma!', [
-          { label: 'Ver Planos', value: 'plans' }
-        ]);
-        setStep('end');
-      }, 1000);
-    }, 600);
+        addBot(`A cotação oficial do Dólar agora é R$ ${cambio?.valor_cambio.toFixed(2) || '---'}.`);
+        setTimeout(() => {
+          addBot('Deseja aproveitar e consultar o Euro também?', [
+            { label: 'Sim, mostrar Euro', value: 'sim_euro' },
+            { label: 'Não, encerrar consulta', value: 'nao_euro' }
+          ]);
+          setStep('pergunta_euro');
+        }, 1000);
+      }, 600);
+    } 
+    
+    else if (step === 'pergunta_euro') {
+      if (choice === 'sim_euro') {
+        addUser("Ver Euro");
+        const { data: cambio } = await supabase
+          .from('historico_cambio')
+          .select('valor_cambio')
+          .eq('moeda_destino', 'EUR')
+          .order('data_consulta', { ascending: false })
+          .limit(1).single();
+
+        setTimeout(() => {
+          addBot(`A cotação oficial do Euro agora é R$ ${cambio?.valor_cambio.toFixed(2) || '---'}.`);
+          finalizarChat();
+        }, 600);
+      } else {
+        addUser("Encerrar consulta");
+        finalizarChat();
+      }
+    }
+  };
+
+  const finalizarChat = () => {
+    setTimeout(() => {
+      addBot('Obrigado por utilizar a FX Intelligence. Esta consulta foi finalizada. Volte amanhã, pois o mercado pode sofrer alterações nas taxas.');
+      setStep('end');
+    }, 1000);
   };
 
   return (
@@ -130,8 +157,8 @@ export default function Chatbot() {
         <div className="fixed bottom-6 right-6 z-50 flex h-[500px] w-[350px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c0e] shadow-2xl">
           <div className="flex items-center justify-between bg-white/5 px-4 py-3 border-b border-white/5">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-[#22c55e] animate-pulse" />
-              <span className="text-xs font-bold text-white uppercase tracking-widest">FX Assistant</span>
+              <Zap size={14} className="text-[#22c55e]" />
+              <span className="text-xs font-bold text-white uppercase tracking-widest">FX Intelligence</span>
             </div>
             <button onClick={handleClose} className="text-gray-500 hover:text-white"><X size={20} /></button>
           </div>
@@ -146,7 +173,7 @@ export default function Chatbot() {
                   {msg.buttons && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {msg.buttons.map((btn) => (
-                        <button key={btn.value} onClick={() => handleCurrencyChoice(btn.value)} className="rounded-lg border border-[#22c55e] bg-[#22c55e]/10 px-3 py-1 text-xs font-bold text-[#22c55e] hover:bg-[#22c55e] hover:text-black">
+                        <button key={btn.value} onClick={() => handleChoice(btn.value)} className="rounded-lg border border-[#22c55e] bg-[#22c55e]/10 px-3 py-1 text-xs font-bold text-[#22c55e] hover:bg-[#22c55e] hover:text-black transition-colors">
                           {btn.label}
                         </button>
                       ))}
@@ -158,9 +185,9 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {(step !== 'currency' && step !== 'end') && (
+          {(step !== 'currency' && step !== 'pergunta_euro' && step !== 'end') && (
             <div className="p-3 border-t border-white/5 bg-black/20 flex gap-2">
-              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Escreva aqui..." className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#22c55e]/50" />
+              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Sua resposta..." className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none" />
               <button onClick={handleSend} className="bg-[#22c55e] text-black p-2 rounded-xl"><Send size={18} /></button>
             </div>
           )}
