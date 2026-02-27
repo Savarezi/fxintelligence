@@ -12,6 +12,7 @@ export default function Navbar() {
   const links = [
     { to: '/', label: 'Home' },
     { to: '/dashboard', label: 'Dashboard', protected: true },
+    { to: '/solucoes', label: 'Soluções' }, // 👈 ADICIONADO
     { to: '/quem-somos', label: 'Quem Somos' },
   ];
 
@@ -46,10 +47,8 @@ export default function Navbar() {
                   onClick={handleDashboardClick}
                   className="relative group px-5 py-2 transition-all duration-300"
                 >
-                  {/* Efeito de Brilho de Fundo (Glow) */}
                   <div className="absolute inset-0 rounded-full bg-primary/20 blur-md opacity-50 group-hover:opacity-100 transition-opacity animate-pulse" />
                   
-                  {/* Botão Principal */}
                   <div className={`relative flex items-center gap-2 rounded-full border border-primary/50 bg-black/40 px-4 py-1.5 text-sm font-black uppercase tracking-wider transition-all group-hover:border-primary group-hover:scale-105 ${
                     isActive ? 'text-primary border-primary shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'text-primary'
                   }`}>
@@ -99,7 +98,7 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile nav (Simplificada) */}
+      {/* Mobile nav */}
       {mobileOpen && (
         <div className="border-t border-white/10 bg-black p-4 md:hidden">
           {links.map((link) => (

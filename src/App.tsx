@@ -1,3 +1,5 @@
+
+import Solucoes from "./pages/Solucoes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,6 +25,7 @@ const App = () => (
         <AuthProvider>
           <Navbar />
           <Routes>
+            <Route path="/solucoes" element={<Solucoes />} />
             <Route path="/" element={<Index />} />
             <Route path="/quem-somos" element={<About />} />
             <Route path="/dashboard" element={<Dashboard />} />
